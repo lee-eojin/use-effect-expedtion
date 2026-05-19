@@ -26,6 +26,7 @@ function ThemePreview({ theme, onApplied }) {
   const onReceiveApplied = useEffectEvent(onApplied);
 
   useEffect(() => {
+    console.log('effect 실행:', theme);
     applyTheme(getStyle(theme));
     onReceiveApplied(theme);
     return () => {

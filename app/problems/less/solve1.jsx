@@ -24,6 +24,7 @@ function ThemePreview({ theme, onApplied }) {
   );
 
   useEffect(() => {
+    console.log('effect 실행:', theme);
     applyTheme(style);
     onApplied(theme);
     return () => {
