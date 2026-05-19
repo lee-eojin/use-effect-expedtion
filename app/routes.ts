@@ -5,13 +5,10 @@ import {
   prefix,
 } from "@react-router/dev/routes";
 
+const MEMBERS = ["antoliny", "dium", "kob", "less", "peat"] as const;
+
 export default [
   index("routes/home.tsx"),
-  ...prefix("problem/", [
-    route("antoliny/", "problems/antoliny.jsx"),
-    route("dium/", "problems/dium.jsx"),
-    route("kob/", "problems/kob.jsx"),
-    route("less/", "problems/less.jsx"),
-    route("peat/", "problems/peat.jsx"),
-  ]),
-];
+  ...prefix("problem/", MEMBERS.map((name) => route(`${name}/`, `problems/${name}/problem.jsx`))),
+  ...prefix("solve/", MEMBERS.map((name) => route(`${name}/`, `problems/${name}/solve.jsx`))),
+] satisfies RouteConfig;
