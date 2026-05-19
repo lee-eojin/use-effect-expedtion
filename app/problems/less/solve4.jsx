@@ -5,10 +5,9 @@
 // effect의 의존성으로 취급되지 않아 deps에서 제외할 수 있음.
 // 내부적으로는 solve3의 ref 갱신 패턴과 동일하게 동작함.
 //
-// 아직 실험적 API라 stable React 19에서는 experimental_ 접두사로 import.
+// React 19.2에서 stable API로 승격되어 experimental_ 접두사 없이 import 가능.
 
-import { useState, useEffect } from "react";
-import { experimental_useEffectEvent as useEffectEvent } from "react";
+import { useState, useEffect, useEffectEvent } from "react";
 
 function getStyle(theme) {
   return {
