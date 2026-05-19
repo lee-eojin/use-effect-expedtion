@@ -1,13 +1,14 @@
-// [풀이 3] useRef로 최신 콜백 추적
+// [풀이 4] useEffectEvent
 //
-// onApplied를 ref에 저장하고 매 렌더마다 갱신.
-// effect는 ref를 통해 최신 함수를 호출하므로 onApplied를 deps에서 제외 가능.
+// solve3의 useRef 패턴을 React가 공식 API로 추상화한 것.
+// useEffectEvent로 감싼 함수는 항상 최신 값을 읽지만,
+// effect의 의존성으로 취급되지 않아 deps에서 제외할 수 있음.
+// 내부적으로는 solve3의 ref 갱신 패턴과 동일하게 동작함.
 //
-// ✅ 풀이 1, 2와 달리 count가 바뀌어도 effect가 재실행되지 않음.
-//    "로그에 최신 count를 보여준다"는 건 이벤트적 동작이지 effect의 재실행 조건이 아님.
-//    ref 패턴은 이 둘을 정확히 분리함. React의 useEffectEvent가 이 패턴을 공식화한 것.
+// 아직 실험적 API라 stable React 19에서는 experimental_ 접두사로 import.
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { experimental_useEffectEvent as useEffectEvent } from "react";
 
 function getStyle(theme) {
   return {
@@ -22,14 +23,12 @@ function applyTheme(style) {
 }
 
 function ThemePreview({ theme, onApplied }) {
-  const onAppliedRef = useRef(onApplied);
-  useEffect(() => {
-    onAppliedRef.current = onApplied;
-  });
+  // onApplied를 Effect Event로 감쌈 → 항상 최신 함수를 호출하지만 deps 대상이 아님
+  const onReceiveApplied = useEffectEvent(onApplied);
 
   useEffect(() => {
     applyTheme(getStyle(theme));
-    onAppliedRef.current(theme);
+    onReceiveApplied(theme);
     return () => {
       document.body.style.background = "";
       document.body.style.color = "";
@@ -39,7 +38,7 @@ function ThemePreview({ theme, onApplied }) {
   return <div style={getStyle(theme)}>현재 테마: {theme}</div>;
 }
 
-export default function LessSolve3() {
+export default function LessSolve4() {
   const [theme, setTheme] = useState("light");
   const [count, setCount] = useState(0);
   const [log, setLog] = useState([]);
@@ -50,7 +49,7 @@ export default function LessSolve3() {
         Toggle Theme (currently: {theme})
       </button>
       <button onClick={() => setCount((c) => c + 1)}>Count: {count}</button>
-      {/* 인라인 함수로 count를 캡처해도 effect 재실행 없음 */}
+      {/* 부모 수정 불필요, useCallback도 필요 없음 */}
       <ThemePreview
         theme={theme}
         onApplied={(t) => setLog((prev) => [...prev, `[${count}번째] Applied: ${t}`])}

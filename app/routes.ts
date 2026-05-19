@@ -15,4 +15,5 @@ export default [
   route("solve/less/1/", "problems/less/solve1.jsx"),
   route("solve/less/2/", "problems/less/solve2.jsx"),
   route("solve/less/3/", "problems/less/solve3.jsx"),
+  route("solve/less/4/", "problems/less/solve4.jsx"),
 ] satisfies RouteConfig;

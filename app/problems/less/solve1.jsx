@@ -1,9 +1,11 @@
 // [풀이 1] useMemo + useCallback으로 참조 안정화
 //
-// 핵심 아이디어: 문제의 구조를 최대한 유지하면서 deps가 안정되도록 메모이제이션.
-// - style 객체는 useMemo로 감싸서, theme이 바뀔 때만 새 객체를 만들도록 함
-// - onApplied 함수는 부모에서 useCallback으로 감싸서 렌더마다 새로 만들어지지 않게 함
-// 두 가지 모두 안정적인 참조가 됐기 때문에 deps에 안전하게 넣을 수 있음
+// style → useMemo로 theme이 바뀔 때만 새 객체 생성
+// onApplied → useCallback으로 안정화. 단, count를 캡처하므로 deps에 count 포함 필요.
+//
+// ⚠️ 한계: count가 바뀔 때마다 handleApplied의 참조가 바뀌고,
+//         그게 effect deps에 있으므로 테마 재적용 effect가 불필요하게 재실행됨.
+//         count는 로그 표시용일 뿐인데 effect 재실행을 유발하는 게 이상적이지 않음.
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 
@@ -13,7 +15,6 @@ function applyTheme(style) {
 }
 
 function ThemePreview({ theme, onApplied }) {
-  // theme이 바뀔 때만 새 객체를 생성 → deps에 넣어도 무한 루프 없음
   const style = useMemo(
     () => ({
       background: theme === "dark" ? "#222" : "#fff",
@@ -36,20 +37,24 @@ function ThemePreview({ theme, onApplied }) {
 
 export default function LessSolve1() {
   const [theme, setTheme] = useState("light");
+  const [count, setCount] = useState(0);
   const [log, setLog] = useState([]);
 
-  // 빈 deps [] → 컴포넌트 생애 동안 같은 함수 참조를 유지
-  const handleApplied = useCallback((t) => {
-    setLog((prev) => [...prev, `Applied: ${t}`]);
-  }, []);
+  // count를 deps에 넣어야 최신 count를 캡처할 수 있음
+  // 하지만 count가 바뀌면 새 함수 참조 → effect 재실행
+  const handleApplied = useCallback(
+    (t) => {
+      setLog((prev) => [...prev, `[${count}번째] Applied: ${t}`]);
+    },
+    [count],
+  );
 
   return (
     <div>
-      <button
-        onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
-      >
+      <button onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}>
         Toggle Theme (currently: {theme})
       </button>
+      <button onClick={() => setCount((c) => c + 1)}>Count: {count}</button>
       <ThemePreview theme={theme} onApplied={handleApplied} />
       <ul>
         {log.map((entry, i) => (
