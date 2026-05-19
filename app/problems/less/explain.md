@@ -2,7 +2,11 @@
 
 ## 📌 상황
 
-`ThemePreview` 컴포넌트는 `theme` 문자열과 `onApplied` 콜백을 props로 받습니다. 컴포넌트 내부에서는 `theme` 값을 기반으로 배경색과 글자색이 담긴 `style` 객체를 만들고, `useEffect` 안에서 `applyTheme(style)`로 문서에 테마를 적용한 뒤 `onApplied(theme)`로 부모에게 적용 사실을 알립니다. 그런데 `useEffect`의 deps 배열이 `[]`로 되어 있어 린트 경고가 발생하고 있습니다.
+`ThemePreview` 컴포넌트는 `theme` 문자열과 `onApplied` 콜백을 props로 받습니다. 컴포넌트 내부에서는 `theme` 값을 기반으로 배경색과 글자색이 담긴 `style` 객체를 만들고, `useEffect` 안에서 `applyTheme(style)`로 문서에 테마를 적용한 뒤 `onApplied(theme)`로 부모에게 적용 사실을 알립니다.
+
+부모 컴포넌트에는 테마 외에도 카운트 상태가 있고, `onApplied`로 넘기는 콜백은 현재 카운트 값을 로그 메시지에 포함합니다. 이 콜백은 인라인 함수로 넘겨지고 있습니다.
+
+그런데 `useEffect`의 deps 배열이 `[]`로 되어 있어 린트 경고가 발생하고 있습니다.
 
 ---
 
@@ -52,7 +56,7 @@ console.log(a === b); // false
 
 ```jsx
 <ThemePreview
-  onApplied={t => setLog(prev => [...prev, `Applied: ${t}`])}
+  onApplied={t => setLog(prev => [...prev, `[${count}번째] Applied: ${t}`])}
 />
 ```
 
@@ -67,27 +71,53 @@ console.log(a === b); // false
   객체로 묶을 필요 없이 effect 안에서 직접 계산하거나, 순수 함수로 추출하면 됩니다.
 
 - **`onApplied`** 는 외부(부모)에서 넘어오는 함수입니다.
-  컴포넌트 입장에서는 직접 통제하기 어렵기 때문에
-  부모 쪽에서 참조를 안정화하거나, 내부에서 ref로 추적하는 방법을 써야 합니다.
+  게다가 이 콜백은 부모의 `count`를 클로저로 캡처하고 있어서,
+  단순히 참조를 안정화하는 것만으로는 충분하지 않을 수 있습니다.
 
-### 4. 어떤 해결 방법들이 있을까요?
+### 4. `useCallback`으로 `onApplied`를 안정화하면 되지 않을까요?
+
+`useCallback`을 쓸 때 deps 선택에 따라 서로 다른 문제가 생깁니다.
+
+**deps를 `[]`로 비우면** — 함수 참조는 안정적이지만 `count`를 클로저로 캡처한 시점에 고정됩니다.
+count가 아무리 바뀌어도 로그에는 항상 초기값만 찍히는 **stale closure** 버그가 발생합니다.
+
+```jsx
+const handleApplied = useCallback((t) => {
+  setLog(prev => [...prev, `[${count}번째] Applied: ${t}`]);
+}, []); // count가 바뀌어도 0으로 고정됨
+```
+
+**deps에 `count`를 포함하면** — stale closure는 해결되지만 count가 바뀔 때마다
+`handleApplied`의 참조가 새로 만들어집니다.
+이 함수가 effect deps에 있으므로, 카운트를 올릴 때마다 테마 적용 effect가 **불필요하게 재실행**됩니다.
+count는 로그 표시용일 뿐인데 effect 재실행을 유발하는 게 이상적이지 않습니다.
+
+```jsx
+const handleApplied = useCallback((t) => {
+  setLog(prev => [...prev, `[${count}번째] Applied: ${t}`]);
+}, [count]); // count 바뀔 때마다 effect 재실행
+```
+
+### 5. 어떤 해결 방법들이 있을까요?
 
 **방법 1 — 메모이제이션** (`solve1.jsx`)
 
-`style`을 `useMemo`로 감싸고, `onApplied`를 부모에서 `useCallback`으로 감쌉니다.
-두 값 모두 안정적인 참조가 되므로 deps에 안전하게 넣을 수 있습니다.
-구조 변경 없이 해결할 수 있지만, 메모이제이션 레이어가 추가됩니다.
+`style`을 `useMemo`로 감싸고, `onApplied`를 부모에서 `useCallback([count])`으로 감쌉니다.
+stale closure는 없지만 count 변화가 effect 재실행을 유발하는 한계가 있습니다.
 
 **방법 2 — 순수 함수 추출** (`solve2.jsx`)
 
-객체 생성 로직을 컴포넌트 바깥 순수 함수로 옮깁니다.
-effect 내부에서 함수를 호출하면 반환된 객체는 deps 대상이 아니라
-effect 안의 지역 변수가 됩니다.
-`onApplied`는 여전히 부모에서 `useCallback`이 필요합니다.
+객체 생성 로직을 컴포넌트 바깥 순수 함수로 옮겨 style 문제를 해결합니다.
+`onApplied`는 방법 1과 동일하게 `useCallback([count])`이 필요하며 같은 한계를 공유합니다.
 
 **방법 3 — useRef로 콜백 추적** (`solve3.jsx`)
 
 `onApplied`를 ref에 저장하고 매 렌더마다 최신 값으로 갱신합니다.
 effect는 ref를 통해 최신 함수를 호출하므로 `onApplied`를 deps에서 제외할 수 있습니다.
-부모 수정 없이 해결된다는 게 장점이며,
-React가 실험적으로 제공하는 `useEffectEvent`가 이 패턴을 공식화한 것입니다.
+count가 바뀌어도 effect가 재실행되지 않고, 부모 수정도 불필요합니다.
+
+**방법 4 — useEffectEvent** (`solve4.jsx`)
+
+방법 3의 useRef 패턴을 React가 공식 API로 추상화한 것입니다.
+`useEffectEvent`로 감싼 함수는 항상 최신 값을 읽지만 effect의 의존성으로 취급되지 않습니다.
+현재 실험적 API(`experimental_useEffectEvent`)로만 제공됩니다.
